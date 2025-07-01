@@ -1,0 +1,32 @@
+POST http://localhost:8080/register
+Content-Type: application/json
+
+{
+  "username": "riki123",
+  "email": "riki@example.com",
+  "password": "12345678"
+}
+
+### 
+# @name loginAdmin
+POST http://localhost:8080/login
+Content-Type: application/json
+
+{
+  "email": "riki@example.com",
+  "password": "12345678"
+}
+
+###
+@token = {{loginAdmin.response.body.$.token}}
+POST http://localhost:8080/products
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+    "name": "iPhone 15",
+    "description": "苹果新款",
+    "price": 9999,
+    "stock": 100,
+    "image_url": "https://example.com/img.png"
+}

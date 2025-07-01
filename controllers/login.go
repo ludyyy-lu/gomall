@@ -43,6 +43,7 @@ func Login(c *gin.Context) {
     })
 
     secret := os.Getenv("JWT_SECRET")
+	//secret := "zxcvbnm"
     tokenString, err := token.SignedString([]byte(secret))
     if err != nil {
         c.JSON(http.StatusInternalServerError, gin.H{"error": "Token生成失败"})

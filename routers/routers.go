@@ -13,5 +13,5 @@ func RegisterRoutes(r *gin.Engine) {
     r.POST("/login", controllers.Login)
     auth := r.Group("/")
     auth.Use(middlewares.JWTAuthMiddleware())
-    auth.GET("/me", controllers.Me)
+    auth.POST("/products", controllers.CreateProduct)
 }

@@ -17,6 +17,9 @@ func RegisterRoutes(r *gin.Engine) {
 	r.DELETE("/products/:id", controllers.DeleteProduct)
     r.POST("/categories", controllers.CreateCategory)
     r.GET("/categories", controllers.GetCategories)
+    r.POST("/products/:id/categories", controllers.SetProductCategories)
+    r.GET("/products/:id/categories", controllers.GetProductCategories)
+    r.DELETE("/products/:product_id/categories/:category_id", controllers.RemoveProductCategory)
 
 	auth := r.Group("/")
 	auth.Use(middlewares.JWTAuthMiddleware())

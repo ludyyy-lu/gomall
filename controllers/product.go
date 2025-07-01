@@ -164,10 +164,87 @@ func DeleteProduct(c *gin.Context) {
 		return
 	}
 
+	// 删除前解除关联
+	config.DB.Model(&product).Association("Categories").Clear()
+
 	if err := config.DB.Delete(&product).Error; err != nil {
 		utils.Error(c, http.StatusInternalServerError, "删除失败")
 		return
 	}
 
 	utils.Success(c, nil, "删除成功")
+}
+
+// 给商品创建分类
+type ProductCategoryInput struct {
+	CategoryIDs []uint `json:"category_ids" binding:"required"`
+}
+
+// POST /products/:id/categories
+func SetProductCategories(c *gin.Context) {
+	var input ProductCategoryInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		utils.Error(c, http.StatusBadRequest, "参数错误")
+		return
+	}
+
+	productID := c.Param("id")
+
+	var product models.Product
+	if err := config.DB.Preload("Categories").First(&product, productID).Error; err != nil {
+		utils.Error(c, http.StatusNotFound, "商品不存在")
+		return
+	}
+
+	var categories []models.Category
+	if err := config.DB.Where("id IN ?", input.CategoryIDs).Find(&categories).Error; err != nil {
+		utils.Error(c, http.StatusInternalServerError, "查询分类失败")
+		return
+	}
+
+	if err := config.DB.Model(&product).Association("Categories").Replace(&categories); err != nil {
+		utils.Error(c, http.StatusInternalServerError, "关联分类失败")
+		return
+	}
+
+	utils.Success(c, gin.H{"categories": categories}, "设置成功")
+}
+
+// 查询商品分类接口
+// GET /products/:id/categories
+func GetProductCategories(c *gin.Context) {
+	productID := c.Param("id")
+
+	var product models.Product
+	if err := config.DB.Preload("Categories").First(&product, productID).Error; err != nil {
+		utils.Error(c, http.StatusNotFound, "商品不存在")
+		return
+	}
+
+	utils.Success(c, gin.H{"categories": product.Categories}, "查询成功")
+}
+
+// 删除商品和某个分类的关联接口
+func RemoveProductCategory(c *gin.Context) {
+	productID := c.Param("product_id")
+	categoryID := c.Param("category_id")
+
+	var product models.Product
+	if err := config.DB.Preload("Categories").First(&product, productID).Error; err != nil {
+		utils.Error(c, http.StatusNotFound, "商品不存在")
+		return
+	}
+
+	var category models.Category
+	if err := config.DB.First(&category, categoryID).Error; err != nil {
+		utils.Error(c, http.StatusNotFound, "分类不存在")
+		return
+	}
+
+	if err := config.DB.Model(&product).Association("Categories").Delete(&category); err != nil {
+		utils.Error(c, http.StatusInternalServerError, "解绑失败")
+		return
+	}
+
+	utils.Success(c, nil, "解绑成功")
 }

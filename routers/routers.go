@@ -11,6 +11,10 @@ import (
 func RegisterRoutes(r *gin.Engine) {
     r.POST("/register", controllers.Register)
     r.POST("/login", controllers.Login)
+    r.GET("/products", controllers.GetProducts)
+    r.GET("/products/:id", controllers.GetProductDetail)
+    r.PUT("/products/:id", controllers.UpdateProduct)
+
     auth := r.Group("/")
     auth.Use(middlewares.JWTAuthMiddleware())
     auth.POST("/products", controllers.CreateProduct)

@@ -1,0 +1,2 @@
+-- Active: 1741835322602@@127.0.0.1@3306@gomall
+CREATE DATABASE gomall DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

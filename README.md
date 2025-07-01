@@ -39,3 +39,36 @@ func LoginRoutes(r *gin.Engine) {
 
 不对。RegisterRoutes里的Register不是“用户注册”的意思，而是“注册所有路由到GIn的Engine上”的意思。
 * 就像注册事件、注册插件一样，这里的“register”指的是“注册（挂载）路由”。
+
+#### REST client中如何获取token创建商品？
+错误：
+```http
+ > {% 
+   const res = JSON.parse(responseBody);
+   await client.global.set("token", res.token);
+ %}
+ ```
+正确：
+```http
+# @name loginAdmin
+POST http://localhost:8080/login
+Content-Type: application/json
+
+{
+  "email": "riki@example.com",
+  "password": "12345678"
+}
+
+@token = {{loginAdmin.response.body.$.token}}
+POST http://localhost:8080/products
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+    "name": "iPhone 15",
+    "description": "苹果新款",
+    "price": 9999,
+    "stock": 100,
+    "image_url": "https://example.com/img.png"
+}
+```

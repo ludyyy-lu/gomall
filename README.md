@@ -26,6 +26,24 @@ Gin + GORM
 
 后期可扩展：库存、SKU、图片上传、秒杀、ElasticSearch搜索、MQ异步上架通知...
 
+商品分类模块
+基础功能：
+创建分类
+
+获取分类列表
+
+更新分类
+
+删除分类（软删除优先）
+
+关联商品（一个商品属于一个或多个分类）
+
+models/category.go 定义分类模型
+
+controllers/category.go 处理分类相关接口
+
+路由注册写 routers/router.go 或单独的 routers/category.go
+
 * * *
 
 

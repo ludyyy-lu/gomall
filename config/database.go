@@ -34,5 +34,5 @@ func InitDB() {
 	fmt.Println("✅ 数据库连接成功")
 	DB.AutoMigrate(&models.User{}, &models.Product{})
 	DB.AutoMigrate(&models.CartItem{})
-
+	DB.AutoMigrate(&models.Order{}, &models.OrderItem{})
 }

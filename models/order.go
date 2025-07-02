@@ -18,9 +18,12 @@ type Order struct {
 }
 
 const (
-	OrderStatusPending  = "pending"  // 等待支付
-	OrderStatusPaid     = "paid"     // 已支付
-	OrderStatusCanceled = "canceled" // 取消支付
+	OrderStatusPending   = "pending"   // 待支付
+	OrderStatusPaid      = "paid"      // 已支付
+	OrderStatusCanceled  = "canceled"  // 取消
+	OrderStatusClosed    = "closed"    // 超时关闭
+	OrderStatusShipped   = "shipped"   // 已发货
+	OrderStatusCompleted = "completed" // 已完成
 )
 
 type OrderItem struct {

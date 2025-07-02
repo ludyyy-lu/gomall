@@ -54,7 +54,10 @@ func RegisterRoutes(r *gin.Engine) {
 		order.POST("", controllers.CreateOrder)
 		order.GET("", controllers.GetOrders) // 查询当前用户的订单列表
 		order.GET("/stats", controllers.GetOrderStats)
-		order.GET("/:id", controllers.GetOrderDetail) // 查看订单详情
-		order.POST("/:id/pay", controllers.PayOrder)  // 模拟支付
+		order.GET("/:id", controllers.GetOrderDetail)        // 查看订单详情
+		order.POST("/:id/pay", controllers.PayOrder)         // 模拟支付
+		order.POST("/:id/cancel", controllers.CancelOrder)   //取消订单
+		order.POST("/:id/ship", controllers.ShipOrder)       // 发货
+		order.POST("/:id/confirm", controllers.ConfirmOrder) //确认收货
 	}
 }

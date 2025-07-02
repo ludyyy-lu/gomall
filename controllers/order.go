@@ -201,7 +201,6 @@ func GetOrderStats(c *gin.Context) {
 	// 已取消
 	// 今日创建的订单数量
 
-	
 	// 总订单数
 	config.DB.Model(&models.Order{}).
 		Where("user_id = ?", userID).
@@ -240,5 +239,107 @@ func GetOrderStats(c *gin.Context) {
 	}, "订单状态统计成功")
 }
 
-// 库存扣减和回滚 ？
+// 订单取消
+// 只能取消状态是 pending（待支付）的订单
+// 取消后订单状态更新为 canceled
+// 恢复对应商品的库存（注意并发问题，后面可以用事务）
+// 返回取消成功或失败信息
+func CancelOrder(c *gin.Context) {
+	userID := c.GetUint("user_id")
+	orderID := c.Param("id")
+
+	var order models.Order
+	if err := config.DB.Where("id = ? AND user_id = ?", orderID, userID).First(&order).Error; err != nil {
+		utils.Error(c, http.StatusNotFound, "订单不存在")
+		return
+	}
+
+	if order.Status != "pending" {
+		utils.Error(c, http.StatusBadRequest, "订单无法取消，状态非待支付")
+		return
+	}
+
+	// 启动事务
+	err := config.DB.Transaction(func(tx *gorm.DB) error {
+		// 更新订单状态为取消
+		if err := tx.Model(&order).Update("status", "canceled").Error; err != nil {
+			return err
+		}
+
+		// 恢复库存
+		var orderItems []models.OrderItem
+		if err := tx.Where("order_id = ?", order.ID).Find(&orderItems).Error; err != nil {
+			return err
+		}
+		for _, item := range orderItems {
+			if err := tx.Model(&models.Product{}).
+				Where("id = ?", item.ProductID).
+				Update("stock", gorm.Expr("stock + ?", item.Quantity)).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+
+	if err != nil {
+		utils.Error(c, http.StatusInternalServerError, "取消订单失败")
+		return
+	}
+
+	utils.Success(c, nil, "订单取消成功")
+}
+
+// 订单状态流转
+// 商家发货
+// 发货：POST /orders/:id/ship
+func ShipOrder(c *gin.Context) {
+	orderID := c.Param("id")
+	userID := c.GetUint("user_id")
+
+	var order models.Order
+	if err := config.DB.Where("id = ? AND user_id = ?", orderID, userID).First(&order).Error; err != nil {
+		utils.Error(c, http.StatusNotFound, "订单不存在")
+		return
+	}
+
+	if order.Status != "paid" {
+		utils.Error(c, http.StatusBadRequest, "订单未付款，不能发货")
+		return
+	}
+
+	order.Status = "shipped"
+	if err := config.DB.Save(&order).Error; err != nil {
+		utils.Error(c, http.StatusInternalServerError, "发货失败")
+		return
+	}
+
+	utils.Success(c, gin.H{"order": order}, "发货成功")
+}
+
+// 确认收货
+// 确认收货：POST /orders/:id/confirm
+func ConfirmOrder(c *gin.Context) {
+	orderID := c.Param("id")
+	userID := c.GetUint("user_id")
+
+	var order models.Order
+	if err := config.DB.Where("id = ? AND user_id = ?", orderID, userID).First(&order).Error; err != nil {
+		utils.Error(c, http.StatusNotFound, "订单不存在")
+		return
+	}
+
+	if order.Status != "shipped" {
+		utils.Error(c, http.StatusBadRequest, "订单未发货，无法确认收货")
+		return
+	}
+
+	order.Status = "delivered"
+	if err := config.DB.Save(&order).Error; err != nil {
+		utils.Error(c, http.StatusInternalServerError, "确认收货失败")
+		return
+	}
+
+	utils.Success(c, gin.H{"order": order}, "确认收货成功")
+}
+
 // 订单取消、超时关闭（可选）

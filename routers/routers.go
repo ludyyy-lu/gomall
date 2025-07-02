@@ -52,7 +52,8 @@ func RegisterRoutes(r *gin.Engine) {
 	order := auth.Group("/orders")
 	{
 		order.POST("", controllers.CreateOrder)
-		order.GET("", controllers.GetOrders)          // 查询当前用户的订单列表
+		order.GET("", controllers.GetOrders) // 查询当前用户的订单列表
+		order.GET("/stats", controllers.GetOrderStats)
 		order.GET("/:id", controllers.GetOrderDetail) // 查看订单详情
 		order.POST("/:id/pay", controllers.PayOrder)  // 模拟支付
 	}

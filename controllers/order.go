@@ -6,6 +6,7 @@ import (
 	"gomall/utils"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -188,6 +189,56 @@ func PayOrder(c *gin.Context) {
 	}, "订单支付成功")
 }
 
-// 购物车状态管理
+// 订单状态管理
+// GetOrderStats 获取订单状态统计
+func GetOrderStats(c *gin.Context) {
+	userID := c.GetUint("user_id")
+
+	var total, pending, paid, cancelled, today int64
+	// 全部订单数量
+	// 待支付
+	// 已支付
+	// 已取消
+	// 今日创建的订单数量
+
+	
+	// 总订单数
+	config.DB.Model(&models.Order{}).
+		Where("user_id = ?", userID).
+		Count(&total)
+
+	// 待支付
+	config.DB.Model(&models.Order{}).
+		Where("user_id = ? AND status = ?", userID, "pending").
+		Count(&pending)
+
+	// 已支付
+	config.DB.Model(&models.Order{}).
+		Where("user_id = ? AND status = ?", userID, "paid").
+		Count(&paid)
+
+	// 已取消
+	config.DB.Model(&models.Order{}).
+		Where("user_id = ? AND status = ?", userID, "cancelled").
+		Count(&cancelled)
+
+	// 今日订单（按创建时间统计）
+	todayStart := time.Now().Truncate(24 * time.Hour)
+	// time.Now()是获取当前时间 比如现在2025-07-02 15:23:45
+	// time.Now().Truncate(24 * time.Hour)是获取今天的开始时间，即2025-07-02 00:00:00
+	config.DB.Model(&models.Order{}).
+		Where("user_id = ? AND created_at >= ?", userID, todayStart).
+		Count(&today)
+	// 获取今天创建的订单
+
+	utils.Success(c, gin.H{
+		"total":     total,
+		"pending":   pending,
+		"paid":      paid,
+		"cancelled": cancelled,
+		"today":     today,
+	}, "订单状态统计成功")
+}
+
 // 库存扣减和回滚 ？
 // 订单取消、超时关闭（可选）

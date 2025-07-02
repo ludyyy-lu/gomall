@@ -78,3 +78,7 @@ Authorization: Bearer {{token}}
 POST  http://localhost:8080/orders/{{orderId}}/pay
 Authorization: Bearer {{token}}
 Content-Type: application/json
+
+### 
+GET http://localhost:8080/orders/stats
+Authorization: Bearer {{token}}

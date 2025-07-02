@@ -21,7 +21,17 @@ func RegisterRoutes(r *gin.Engine) {
     r.GET("/products/:id/categories", controllers.GetProductCategories)
     r.DELETE("/products/:product_id/categories/:category_id", controllers.RemoveProductCategory)
 
+	// 用户 需要鉴权
 	auth := r.Group("/")
 	auth.Use(middlewares.JWTAuthMiddleware())
 	auth.POST("/products", controllers.CreateProduct)
+	// 购物车 需要鉴权
+	cart := r.Group("/cart")
+	cart.Use(middlewares.JWTAuthMiddleware())
+	{
+		cart.POST("", controllers.AddToCart)
+		cart.GET("", controllers.GetCartItems)
+
+	}
+
 }

@@ -13,4 +13,5 @@ type Product struct {
 	ImageURL    string     `gorm:"type:varchar(255)" json:"image_url"`
 	UserID      uint       `gorm:"not null" json:"user_id"`      // 创建者
 	Categories  []Category `gorm:"many2many:product_categories"` // 多对多
+	OnSale      bool       `gorm:"default:true" json:"on_sale"`
 }

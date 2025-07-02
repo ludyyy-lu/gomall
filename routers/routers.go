@@ -7,30 +7,46 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// 这样写对吗
 func RegisterRoutes(r *gin.Engine) {
+	// 用户认证
 	r.POST("/register", controllers.Register)
 	r.POST("/login", controllers.Login)
+	// 商品公共接口
 	r.GET("/products", controllers.GetProducts)
 	r.GET("/products/:id", controllers.GetProductDetail)
-	r.PUT("/products/:id", controllers.UpdateProduct)
-	r.DELETE("/products/:id", controllers.DeleteProduct)
-    r.POST("/categories", controllers.CreateCategory)
-    r.GET("/categories", controllers.GetCategories)
-    r.POST("/products/:id/categories", controllers.SetProductCategories)
-    r.GET("/products/:id/categories", controllers.GetProductCategories)
-    r.DELETE("/products/:product_id/categories/:category_id", controllers.RemoveProductCategory)
+	// 分类公共接口
+	r.GET("/categories", controllers.GetCategories)
 
-	// 用户 需要鉴权
+	// 需要登陆的接口
 	auth := r.Group("/")
 	auth.Use(middlewares.JWTAuthMiddleware())
-	auth.POST("/products", controllers.CreateProduct)
+	// 商品管理
+	// 商品模块
+	product := auth.Group("/products")
+	{
+		product.POST("", controllers.CreateProduct)
+		product.PUT("/:id", controllers.UpdateProduct)
+		product.DELETE("/:id", controllers.DeleteProduct)
+		product.PATCH("/:id/status", controllers.UpdateProductStatus)
+		// 分类
+		product.POST("/:id/categories", controllers.SetProductCategories)
+		product.GET("/:id/categories", controllers.GetProductCategories)
+		product.DELETE("/:product_id/categories/:category_id", controllers.RemoveProductCategory)
+	}
+
+	// 分类模块
+	category := auth.Group("/categories")
+	{
+		category.POST("", controllers.CreateCategory)
+	}
+
 	// 购物车 需要鉴权
-	cart := r.Group("/cart")
-	cart.Use(middlewares.JWTAuthMiddleware())
+	cart := auth.Group("/cart")
 	{
 		cart.POST("", controllers.AddToCart)
 		cart.GET("", controllers.GetCartItems)
+		cart.DELETE("/:id", controllers.DeleteCartItem)
+		cart.PATCH("/:id", controllers.UpdateCartItem)
 
 	}
 

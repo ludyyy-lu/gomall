@@ -80,3 +80,62 @@ func GetCartItems(c *gin.Context) {
 
 	utils.Success(c, gin.H{"items": cartItems}, "获取成功")
 }
+// 删除购物车项
+// DELETE /cart/:id
+func DeleteCartItem(c *gin.Context) {
+	userID := c.GetUint("user_id")
+	cartItemID := c.Param("id")
+
+	var cartItem models.CartItem
+	if err := config.DB.First(&cartItem, cartItemID).Error; err != nil {
+		utils.Error(c, http.StatusNotFound, "购物项不存在")
+		return
+	}
+
+	if cartItem.UserID != userID {
+		utils.Error(c, http.StatusForbidden, "无权限操作")
+		return
+	}
+
+	if err := config.DB.Delete(&cartItem).Error; err != nil {
+		utils.Error(c, http.StatusInternalServerError, "删除失败")
+		return
+	}
+
+	utils.Success(c, nil, "删除成功")
+}
+
+type UpdateCartItemInput struct {
+	Quantity uint `json:"quantity" binding:"required"`
+}
+// 修改数量
+// PATCH /cart/:id
+func UpdateCartItem(c *gin.Context) {
+	userID := c.GetUint("user_id")
+	cartItemID := c.Param("id")
+
+	var input UpdateCartItemInput
+	if err := c.ShouldBindJSON(&input); err != nil || input.Quantity == 0 {
+		utils.Error(c, http.StatusBadRequest, "参数错误")
+		return
+	}
+
+	var cartItem models.CartItem
+	if err := config.DB.First(&cartItem, cartItemID).Error; err != nil {
+		utils.Error(c, http.StatusNotFound, "购物项不存在")
+		return
+	}
+
+	if cartItem.UserID != userID {
+		utils.Error(c, http.StatusForbidden, "无权限操作")
+		return
+	}
+
+	cartItem.Quantity = input.Quantity
+	if err := config.DB.Save(&cartItem).Error; err != nil {
+		utils.Error(c, http.StatusInternalServerError, "更新失败")
+		return
+	}
+
+	utils.Success(c, gin.H{"cart_item": cartItem}, "更新成功")
+}

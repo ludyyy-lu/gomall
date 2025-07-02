@@ -76,7 +76,7 @@ func GetProducts(c *gin.Context) {
 	}
 
 	var products []models.Product
-	query := config.DB.Model(&models.Product{})
+	query := config.DB.Model(&models.Product{}).Where("on_sale = ?",true)
 	if keyword != "" {
 		query = query.Where("name LIKE ? OR description LIKE ?", "%"+keyword+"%", "%"+keyword+"%")
 	}
@@ -247,4 +247,33 @@ func RemoveProductCategory(c *gin.Context) {
 	}
 
 	utils.Success(c, nil, "解绑成功")
+}
+
+// PATCH /products/:id/status
+func UpdateProductStatus(c *gin.Context) {
+	productID := c.Param("id")
+	var input struct {
+		OnSale bool `json:"on_sale"` // 是否上架
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		utils.Error(c, http.StatusBadRequest, "参数错误")
+		return
+	}
+
+	var product models.Product
+	if err := config.DB.First(&product, productID).Error; err != nil {
+		utils.Error(c, http.StatusNotFound, "商品不存在")
+		return
+	}
+
+	product.OnSale = input.OnSale
+	if err := config.DB.Save(&product).Error; err != nil {
+		utils.Error(c, http.StatusInternalServerError, "更新失败")
+		return
+	}
+
+	utils.Success(c, gin.H{
+		"product": product,
+	}, "商品状态已更新")
 }

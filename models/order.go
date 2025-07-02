@@ -21,7 +21,7 @@ type OrderItem struct {
 	ID         uint    `gorm:"primaryKey"`
 	OrderID    uint    `gorm:"not null"`
 	ProductID  uint    `gorm:"not null"`
-	Quantity   int     `gorm:"not null"`
+	Quantity   uint     `gorm:"not null"`
 	UnitPrice  float64 `gorm:"type:decimal(10,2);not null"` //下单时的价格，防止价格变动导致混乱
 	TotalPrice float64 `gorm:"type:decimal(10,2);not null"`
 

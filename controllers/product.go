@@ -16,7 +16,7 @@ func CreateProduct(c *gin.Context) {
 		Name        string  `json:"name" binding:"required"`
 		Description string  `json:"description"`
 		Price       float64 `json:"price" binding:"required"`
-		Stock       int     `json:"stock"`
+		Stock       uint    `json:"stock"`
 		ImageURL    string  `json:"image_url"`
 	}
 
@@ -76,7 +76,7 @@ func GetProducts(c *gin.Context) {
 	}
 
 	var products []models.Product
-	query := config.DB.Model(&models.Product{}).Where("on_sale = ?",true)
+	query := config.DB.Model(&models.Product{}).Where("on_sale = ?", true)
 	if keyword != "" {
 		query = query.Where("name LIKE ? OR description LIKE ?", "%"+keyword+"%", "%"+keyword+"%")
 	}
@@ -126,7 +126,7 @@ func UpdateProduct(c *gin.Context) {
 		Name        *string  `json:"name"`
 		Description *string  `json:"description"`
 		Price       *float64 `json:"price"`
-		Stock       *int     `json:"stock"`
+		Stock       *uint    `json:"stock"`
 	}
 	if err := c.ShouldBindJSON(&input); err != nil {
 		utils.Error(c, http.StatusBadRequest, "请求参数错误")

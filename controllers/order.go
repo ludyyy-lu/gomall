@@ -98,7 +98,7 @@ func GetOrders(c *gin.Context) {
 	// ！！！
 	if err := config.DB.
 		Where("user_id = ?", userID).
-		Preload("Items.Product").
+		Preload("OrderItems.Product").
 		Order("created_at DESC").
 		Limit(size).
 		Offset(offset).
@@ -126,7 +126,7 @@ func GetOrderDetail(c *gin.Context) {
 	var order models.Order
 	if err := config.DB.
 		Where("id = ? AND user_id = ?", orderID, userID).
-		Preload("Items.Product").
+		Preload("OrderItems.Product").
 		First(&order).Error; err != nil {
 		utils.Error(c, http.StatusNotFound, "订单不存在")
 		return
@@ -142,7 +142,7 @@ func PayOrder(c *gin.Context) {
 
 	var order models.Order
 	if err := config.DB.
-		Preload("Items.Product").
+		Preload("OrderItems.Product").
 		Where("id = ? AND user_id = ?", orderID, userID).
 		First(&order).Error; err != nil {
 		utils.Error(c, http.StatusNotFound, "订单不存在")

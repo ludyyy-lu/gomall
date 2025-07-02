@@ -18,6 +18,7 @@ Content-Type: application/json
 }
 
 ###
+// 添加商品
 @token = {{loginAdmin.response.body.$.token}}
 POST http://localhost:8080/products
 Authorization: Bearer {{token}}
@@ -31,6 +32,49 @@ Content-Type: application/json
     "image_url": "https://example.com/img.png"
 }
 
-###
-POST  http://localhost:8080/orders/3/pay
+### 添加商品到购物车
+POST http://localhost:8080/cart
 Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "product_id": 1,
+  "quantity": 2
+}
+
+### 查看购物车
+GET http://localhost:8080/cart
+Authorization: Bearer {{token}}
+
+
+### 创建订单
+# @name createOrder
+POST http://localhost:8080/orders
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "items": [
+    { "product_id": 1, "quantity": 2 }
+  ]
+}
+###
+@orderId = {{createOrder.response.body.$.data.order.id}}
+
+### 支付订单（订单ID先用你创建返回的，别写死3）
+POST http://localhost:8080/orders/{{orderId}}/pay
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+### 获取当前用户所有订单
+GET http://localhost:8080/orders
+Authorization: Bearer {{token}}
+
+### 查看某一个订单详情
+GET http://localhost:8080/orders/{{orderId}}
+Authorization: Bearer {{token}}
+
+###
+POST  http://localhost:8080/orders/{{orderId}}/pay
+Authorization: Bearer {{token}}
+Content-Type: application/json

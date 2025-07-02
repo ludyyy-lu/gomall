@@ -7,14 +7,14 @@ import (
 )
 
 type Order struct {
-	ID         uint    `gorm:"primaryKey"`
-	UserID     uint    `gorm:"not null"`
-	Status     string  `gorm:"type:varchar(20);default:'pending'"`
-	TotalPrice float64 `gorm:"type:decimal(10,2);not null"`
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
-	DeleteAt   gorm.DeletedAt `gorm:"index"`              //开启软删除
-	OrderItems []OrderItem    `gorm:"foreignKey:OrderID"` // 一对多
+	ID         uint           `gorm:"primaryKey" json:"id"`
+	UserID     uint           `gorm:"not null" json:"user_id"`
+	Status     string         `gorm:"type:varchar(20);default:'pending'" json:"status"`
+	TotalPrice float64        `gorm:"type:decimal(10,2);not null" json:"total_price"`
+	CreatedAt  time.Time      `json:"created_at"`
+	UpdatedAt  time.Time      `json:"updated_at"`
+	DeleteAt   gorm.DeletedAt `gorm:"index" json:"-"`
+	OrderItems []OrderItem    `gorm:"foreignKey:OrderID" json:"order_items"`
 }
 
 const (

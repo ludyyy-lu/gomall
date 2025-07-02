@@ -280,3 +280,47 @@ status 是单个状态，而 stats 是统计信息（statistics）
 | `/orders/stats` ✅      | 获取当前用户所有订单的状态统计 | 是一个聚合接口     |
 | `/orders/:id/status` ✅ | 获取某个订单的状态       | 是一个精确查询     |
 | `/orders/status` ❌     | 意义模糊            | 不符合 REST 规范 |
+
+#### 关于:id贪婪匹配的一些注意事项
+为什么不能
+```
+order := auth.Group("/orders")
+{
+	order.POST("", controllers.CreateOrder)
+	order.GET("", controllers.GetOrders)
+	order.GET("/:id", controllers.GetOrderDetail)
+	order.POST("/:id/pay", controllers.PayOrder)
+	order.GET("/stats", controllers.GetOrderStats) // 👈 这个会被误解读
+}
+```
+而必须是
+```
+order := auth.Group("/orders")
+{
+	order.POST("", controllers.CreateOrder)
+	order.GET("/stats", controllers.GetOrderStats)      // 👈 先写这个
+	order.GET("", controllers.GetOrders)
+	order.GET("/:id", controllers.GetOrderDetail)
+	order.POST("/:id/pay", controllers.PayOrder)
+}
+```
+这和 Gin 的路由匹配机制有关，尤其是 :id 这种路径参数的贪婪匹配（greedy matching）行为。
+原因：:id 是贪婪匹配，你期望执行的是 GetOrderStats，但实际执行的却是 GetOrderDetail。
+Gin 会从上往下查找哪个路由“能匹配得上”，它看到：/orders/stats，然后看看 /orders/:id 能不能匹配？ Gin 判断：
+:id 是一个变量，占位符。
+/orders/stats ➜ /orders/:id ➜ :id = "stats"
+于是 Gin 就把这个请求交给了 GetOrderDetail 处理。
+但 "stats" 显然不是一个合法订单 ID，查询数据库失败，自然返回“订单不存在”。
+
+**本质问题**：动态参数 :id 把静态路径 /stats 吃掉了
+Gin 的路径匹配优先级：
+静态路径（如 /orders/stats）
+带参数路径（如 /orders/:id）
+通配符路径（如 /orders/*path）
+但是如果 /orders/:id 写在 /orders/stats 上面，Gin 会优先匹配成功第一个符合的路径，而不会继续尝试后面的。
+
+| 匹配类型  | 示例路径            | 匹配优先级 | 说明     |
+| ----- | --------------- | ----- | ------ |
+| 静态路径  | `/orders/stats` | ✅ 最高  | 必须完全一致 |
+| 参数路径  | `/orders/:id`   | 中     | 匹配任意单段 |
+| 通配符路径 | `/orders/*path` | 最低    | 匹配多段路径 |

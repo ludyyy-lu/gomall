@@ -14,7 +14,7 @@ type AddCartItemInput struct {
 	Quantity  uint `json:"quantity" binding:"required"`
 }
 
-// 添加购物车
+// 添加商品到购物车
 // POST /cart
 func AddToCart(c *gin.Context) {
 	var input AddCartItemInput
@@ -62,7 +62,7 @@ func AddToCart(c *gin.Context) {
 		config.DB.Create(&cartItem)
 	}
 
-	utils.Success(c, gin.H{"cart_item": cartItem}, "添加成功")
+	utils.Success(c, gin.H{"cart_item": cartItem}, "商品成功添加至购物车")
 }
 
 // GET /cart
@@ -74,12 +74,13 @@ func GetCartItems(c *gin.Context) {
 		Where("user_id = ?", userID).
 		Preload("Product").
 		Find(&cartItems).Error; err != nil {
-		utils.Error(c, http.StatusInternalServerError, "获取购物车失败")
+		utils.Error(c, http.StatusInternalServerError, "获取购物车列表失败")
 		return
 	}
 
-	utils.Success(c, gin.H{"items": cartItems}, "获取成功")
+	utils.Success(c, gin.H{"items": cartItems}, "获取购物车列表成功")
 }
+
 // 删除购物车项
 // DELETE /cart/:id
 func DeleteCartItem(c *gin.Context) {
@@ -98,16 +99,17 @@ func DeleteCartItem(c *gin.Context) {
 	}
 
 	if err := config.DB.Delete(&cartItem).Error; err != nil {
-		utils.Error(c, http.StatusInternalServerError, "删除失败")
+		utils.Error(c, http.StatusInternalServerError, "删除购物车中选中物品失败")
 		return
 	}
 
-	utils.Success(c, nil, "删除成功")
+	utils.Success(c, nil, "删除购物车中选中物品成功")
 }
 
 type UpdateCartItemInput struct {
 	Quantity uint `json:"quantity" binding:"required"`
 }
+
 // 修改数量
 // PATCH /cart/:id
 func UpdateCartItem(c *gin.Context) {
@@ -133,9 +135,9 @@ func UpdateCartItem(c *gin.Context) {
 
 	cartItem.Quantity = input.Quantity
 	if err := config.DB.Save(&cartItem).Error; err != nil {
-		utils.Error(c, http.StatusInternalServerError, "更新失败")
+		utils.Error(c, http.StatusInternalServerError, "更新购物车内选中商品数量失败")
 		return
 	}
 
-	utils.Success(c, gin.H{"cart_item": cartItem}, "更新成功")
+	utils.Success(c, gin.H{"cart_item": cartItem}, "更新购物车内选中商品数量成功")
 }

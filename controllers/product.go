@@ -277,3 +277,5 @@ func UpdateProductStatus(c *gin.Context) {
 		"product": product,
 	}, "商品状态已更新")
 }
+
+// 商品库存管理

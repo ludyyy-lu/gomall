@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 // 创建订单
@@ -132,4 +133,57 @@ func GetOrderDetail(c *gin.Context) {
 	}
 
 	utils.Success(c, gin.H{"order": order}, "订单详情获取成功")
+}
+
+// 模拟支付
+func PayOrder(c *gin.Context) {
+	orderID := c.Param("id")
+	userID := c.GetUint("user_id")
+
+	var order models.Order
+	if err := config.DB.
+		Preload("Items.Product").
+		Where("id = ? AND user_id = ?", orderID, userID).
+		First(&order).Error; err != nil {
+		utils.Error(c, http.StatusNotFound, "订单不存在")
+		return
+	}
+
+	if order.Status != "pending" {
+		utils.Error(c, http.StatusBadRequest, "订单无法支付")
+		return
+	}
+
+	// 开启事务
+	// ！！！
+	tx := config.DB.Begin()
+
+	for _, item := range order.OrderItems {
+		if item.Product.Stock < item.Quantity {
+			tx.Rollback()
+			utils.Error(c, http.StatusBadRequest, "商品库存不足："+item.Product.Name)
+			return
+		}
+		// 扣库存
+		if err := tx.Model(&item.Product).Where("id = ?", item.Product.ID).
+			Update("stock", gorm.Expr("stock - ?", item.Quantity)).Error; err != nil {
+			tx.Rollback()
+			utils.Error(c, http.StatusInternalServerError, "库存扣除失败")
+			return
+		}
+	}
+
+	// 修改订单状态
+	if err := tx.Model(&order).Update("status", "paid").Error; err != nil {
+		tx.Rollback()
+		utils.Error(c, http.StatusInternalServerError, "更新订单状态失败")
+		return
+	}
+
+	tx.Commit()
+
+	utils.Success(c, gin.H{
+		"order_id": order.ID,
+		"status":   "paid",
+	}, "订单支付成功")
 }

@@ -31,7 +31,7 @@ func RegisterRoutes(r *gin.Engine) {
 		// 分类
 		product.POST("/:id/categories", controllers.SetProductCategories)
 		product.GET("/:id/categories", controllers.GetProductCategories)
-		product.DELETE("/:product_id/categories/:category_id", controllers.RemoveProductCategory)
+		product.DELETE("/:id/categories/:category_id", controllers.RemoveProductCategory)
 	}
 
 	// 分类模块
@@ -52,8 +52,8 @@ func RegisterRoutes(r *gin.Engine) {
 	order := auth.Group("/orders")
 	{
 		order.POST("", controllers.CreateOrder)
-		order.GET("", controllers.GetOrders)       // 查询当前用户的订单列表
+		order.GET("", controllers.GetOrders)          // 查询当前用户的订单列表
 		order.GET("/:id", controllers.GetOrderDetail) // 查看订单详情
+		order.POST("/:id/pay", controllers.PayOrder)  // 模拟支付
 	}
-
 }

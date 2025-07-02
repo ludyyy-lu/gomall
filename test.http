@@ -30,3 +30,7 @@ Content-Type: application/json
     "stock": 100,
     "image_url": "https://example.com/img.png"
 }
+
+###
+POST  http://localhost:8080/orders/3/pay
+Authorization: Bearer {{token}}

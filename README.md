@@ -214,6 +214,11 @@ CartItem
 | 支付订单     | PATCH | `/orders/:id/pay`    | ✅    |
 | 取消订单     | PATCH | `/orders/:id/cancel` | ✅    |
 
+* 还可以扩展的内容
+* 支持部分商品下单
+* 支持事务控制（失败就回滚库存）
+* 支持并发下单控制库存（防止超卖）
+
 ### 疑问
 自动迁移的一些注意事项
 | 注意事项                     | 说明                                                |
@@ -232,4 +237,12 @@ GORM 的软删除机制其实是给表里自动加了一个 deleted_at 字段：
 db.Unscoped().Find(&orders)
 // 真正删除（硬删除）
 db.Unscoped().Delete(&order)
+```
+
+```
+userID := c.GetUint("user_id")
+```
+这行代码从 Gin 的 Context 中获取当前用户的 ID。这个值通常来自于 JWT 中间件中设置的：
+```
+c.Set("user_id", userID) // 在登录鉴权时设置
 ```

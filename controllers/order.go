@@ -342,4 +342,31 @@ func ConfirmOrder(c *gin.Context) {
 	utils.Success(c, gin.H{"order": order}, "确认收货成功")
 }
 
+// 超时自动取消
+// 超时关闭未支付订单：GET /orders/auto-cancel
+func AutoCancelOrders(c *gin.Context) {
+	now := time.Now()
+	tenMinutesAgo := now.Add(-10 * time.Minute)
+
+	var orders []models.Order
+	err := config.DB.
+		Where("status = ? AND created_at <= ?", "pending", tenMinutesAgo).
+		Find(&orders).Error
+
+	if err != nil {
+		utils.Error(c, http.StatusInternalServerError, "查询失败")
+		return
+	}
+
+	// 取消这些订单
+	for _, order := range orders {
+		order.Status = "timeout"
+		config.DB.Save(&order)
+	}
+
+	utils.Success(c, gin.H{
+		"cancelled_count": len(orders),
+	}, "已自动取消超时订单")
+}
+
 // 订单取消、超时关闭（可选）

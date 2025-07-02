@@ -24,6 +24,7 @@ const (
 	OrderStatusClosed    = "closed"    // 超时关闭
 	OrderStatusShipped   = "shipped"   // 已发货
 	OrderStatusCompleted = "completed" // 已完成
+	OrderStatusTimeout   = "timeout"   // 已超时
 )
 
 type OrderItem struct {

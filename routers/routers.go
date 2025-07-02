@@ -59,5 +59,6 @@ func RegisterRoutes(r *gin.Engine) {
 		order.POST("/:id/cancel", controllers.CancelOrder)   //取消订单
 		order.POST("/:id/ship", controllers.ShipOrder)       // 发货
 		order.POST("/:id/confirm", controllers.ConfirmOrder) //确认收货
+		order.GET("/auto-cancel", controllers.AutoCancelOrders)
 	}
 }

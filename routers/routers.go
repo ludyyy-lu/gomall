@@ -49,5 +49,11 @@ func RegisterRoutes(r *gin.Engine) {
 		cart.PATCH("/:id", controllers.UpdateCartItem)
 
 	}
+	order := auth.Group("/orders")
+	{
+		order.POST("", controllers.CreateOrder)
+		order.GET("", controllers.GetOrders)       // 查询当前用户的订单列表
+		order.GET("/:id", controllers.GetOrderDetail) // 查看订单详情
+	}
 
 }

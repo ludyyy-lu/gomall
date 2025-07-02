@@ -1,14 +1,16 @@
 package controllers
 
 import (
-	"net/http"
 	"gomall/config"
 	"gomall/models"
 	"gomall/utils"
+	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
 
+// 创建订单
 func CreateOrder(c *gin.Context) {
 	userID := c.GetUint("user_id")
 
@@ -72,4 +74,62 @@ func CreateOrder(c *gin.Context) {
 	utils.Success(c, gin.H{
 		"order": order,
 	}, "订单创建成功")
+}
+
+// 查询订单列表
+func GetOrders(c *gin.Context) {
+	userID := c.GetUint("user_id")
+
+	// 分页参数
+	pageStr := c.DefaultQuery("page", "1")
+	sizeStr := c.DefaultQuery("size", "10")
+	page, _ := strconv.Atoi(pageStr)
+	size, _ := strconv.Atoi(sizeStr)
+	if page < 1 {
+		page = 1
+	}
+	if size < 1 || size > 100 {
+		size = 10
+	}
+	offset := (page - 1) * size
+
+	var orders []models.Order
+	// ！！！
+	if err := config.DB.
+		Where("user_id = ?", userID).
+		Preload("Items.Product").
+		Order("created_at DESC").
+		Limit(size).
+		Offset(offset).
+		Find(&orders).Error; err != nil {
+		utils.Error(c, http.StatusInternalServerError, "订单查询失败")
+		return
+	}
+
+	var total int64
+	config.DB.Model(&models.Order{}).Where("user_id = ?", userID).Count(&total)
+
+	utils.Success(c, gin.H{
+		"page":  page,
+		"size":  size,
+		"data":  orders,
+		"total": total,
+	}, "订单获取成功")
+}
+
+// 获取订单详情
+func GetOrderDetail(c *gin.Context) {
+	orderID := c.Param("id")
+	userID := c.GetUint("user_id")
+
+	var order models.Order
+	if err := config.DB.
+		Where("id = ? AND user_id = ?", orderID, userID).
+		Preload("Items.Product").
+		First(&order).Error; err != nil {
+		utils.Error(c, http.StatusNotFound, "订单不存在")
+		return
+	}
+
+	utils.Success(c, gin.H{"order": order}, "订单详情获取成功")
 }

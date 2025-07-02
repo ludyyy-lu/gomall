@@ -14,7 +14,7 @@ type Order struct {
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
 	DeleteAt   gorm.DeletedAt `gorm:"index"` //开启软删除
-	OrderItems []OrderItem    `gorm:"foreignKey:OrderID"`
+	OrderItems []OrderItem    `gorm:"foreignKey:OrderID"` // 一对多
 }
 
 type OrderItem struct {

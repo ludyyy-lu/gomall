@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"gomall/config"
 	"gomall/models"
 	"net/http"
 	"os"
@@ -10,10 +9,19 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 )
 
+type UserController struct {
+	DB *gorm.DB
+}
+
+func NewUserController(db *gorm.DB) *UserController {
+	return &UserController{DB: db}
+}
+
 // Register 注册用户
-func Register(c *gin.Context) {
+func (uc UserController) Register(c *gin.Context) {
 	var input struct {
 		Username string `json:"username" binding:"required,min=3,max=20"`
 		Email    string `json:"email" binding:"required,email"`
@@ -38,7 +46,7 @@ func Register(c *gin.Context) {
 		Password: string(hashedPwd),
 	}
 
-	if err := config.DB.Create(&user).Error; err != nil {
+	if err := uc.DB.Create(&user).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "用户创建失败（可能用户名/邮箱已存在）"})
 		return
 	}
@@ -47,7 +55,7 @@ func Register(c *gin.Context) {
 }
 
 // 登陆
-func Login(c *gin.Context) {
+func (uc UserController) Login(c *gin.Context) {
 	var input struct {
 		Email    string `json:"email" binding:"required,email"`
 		Password string `json:"password" binding:"required"`
@@ -60,7 +68,7 @@ func Login(c *gin.Context) {
 
 	// 查找用户
 	var user models.User
-	if err := config.DB.Where("email = ?", input.Email).First(&user).Error; err != nil {
+	if err := uc.DB.Where("email = ?", input.Email).First(&user).Error; err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "用户不存在"})
 		return
 	}

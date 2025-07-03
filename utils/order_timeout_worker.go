@@ -3,20 +3,20 @@ package utils
 import (
 	"context"
 	"fmt"
-	"gomall/config"
 	"gomall/models"
 	"strconv"
 	"time"
 
 	"github.com/redis/go-redis/v9"
+	"gorm.io/gorm"
 )
 
 // 后台定时任务定期检查并取消订单
-func StartOrderTimeoutWatcher() {
+func StartOrderTimeoutWatcher(rdb *redis.Client, db *gorm.DB) {
 	go func() {
 		for {
 			now := time.Now().Unix()
-			res, _ := config.RDB.ZRangeByScore(context.Background(), "order:timeout", &redis.ZRangeBy{
+			res, _ := rdb.ZRangeByScore(context.Background(), "order:timeout", &redis.ZRangeBy{
 				Min: "-inf",
 				Max: fmt.Sprintf("%d", now),
 			}).Result()
@@ -28,7 +28,7 @@ func StartOrderTimeoutWatcher() {
 				}
 
 				var order models.Order
-				if err := config.DB.Preload("OrderItems").First(&order, uint(orderID)).Error; err != nil {
+				if err := db.Preload("OrderItems").First(&order, uint(orderID)).Error; err != nil {
 					continue
 				}
 				if order.Status == "pending" {
@@ -38,18 +38,18 @@ func StartOrderTimeoutWatcher() {
 					if order.OrderItems != nil {
 						for _, item := range order.OrderItems {
 							var product models.Product
-							if err := config.DB.First(&product, item.ProductID).Error; err == nil {
+							if err := db.First(&product, item.ProductID).Error; err == nil {
 								product.Stock += item.Quantity
-								config.DB.Save(&product)
+								db.Save(&product)
 							}
 						}
 					}
 
 					// 保存订单状态
-					config.DB.Save(&order)
+					db.Save(&order)
 				}
 				// 从 Redis 移除
-				config.RDB.ZRem(context.Background(), "order:timeout", orderIDStr)
+				rdb.ZRem(context.Background(), "order:timeout", orderIDStr)
 			}
 
 			time.Sleep(1 * time.Minute)

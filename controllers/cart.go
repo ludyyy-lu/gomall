@@ -1,13 +1,22 @@
 package controllers
 
 import (
-	"gomall/config"
 	"gomall/models"
 	"gomall/utils"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
+
+type CartController struct {
+	DB *gorm.DB
+	// RDB *redis.Client
+}
+
+func NewCartController(db *gorm.DB) *CartController {
+	return &CartController{DB: db}
+}
 
 type AddCartItemInput struct {
 	ProductID uint `json:"product_id" binding:"required"`
@@ -16,7 +25,7 @@ type AddCartItemInput struct {
 
 // 添加商品到购物车
 // POST /cart
-func AddToCart(c *gin.Context) {
+func (cc *CartController) AddToCart(c *gin.Context) {
 	var input AddCartItemInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		utils.Error(c, http.StatusBadRequest, "参数错误")
@@ -32,7 +41,7 @@ func AddToCart(c *gin.Context) {
 
 	// 查询商品是否存在
 	var product models.Product
-	if err := config.DB.First(&product, input.ProductID).Error; err != nil {
+	if err := cc.DB.First(&product, input.ProductID).Error; err != nil {
 		utils.Error(c, http.StatusNotFound, "商品不存在")
 		return
 	}
@@ -44,14 +53,14 @@ func AddToCart(c *gin.Context) {
 
 	// 查找是否已经存在相同商品的购物车项
 	var cartItem models.CartItem
-	err := config.DB.
+	err := cc.DB.
 		Where("user_id = ? AND product_id = ?", userID, input.ProductID).
 		First(&cartItem).Error
 
 	if err == nil {
 		// 已存在，增加数量
 		cartItem.Quantity += input.Quantity
-		config.DB.Save(&cartItem)
+		cc.DB.Save(&cartItem)
 	} else {
 		// 不存在，新增购物车项
 		cartItem = models.CartItem{
@@ -59,18 +68,18 @@ func AddToCart(c *gin.Context) {
 			ProductID: input.ProductID,
 			Quantity:  input.Quantity,
 		}
-		config.DB.Create(&cartItem)
+		cc.DB.Create(&cartItem)
 	}
 
 	utils.Success(c, gin.H{"cart_item": cartItem}, "商品成功添加至购物车")
 }
 
 // GET /cart
-func GetCartItems(c *gin.Context) {
+func (cc *CartController) GetCartItems(c *gin.Context) {
 	userID := c.GetUint("user_id")
 
 	var cartItems []models.CartItem
-	if err := config.DB.
+	if err := cc.DB.
 		Where("user_id = ?", userID).
 		Preload("Product").
 		Find(&cartItems).Error; err != nil {
@@ -83,12 +92,12 @@ func GetCartItems(c *gin.Context) {
 
 // 删除购物车项
 // DELETE /cart/:id
-func DeleteCartItem(c *gin.Context) {
+func (cc *CartController) DeleteCartItem(c *gin.Context) {
 	userID := c.GetUint("user_id")
 	cartItemID := c.Param("id")
 
 	var cartItem models.CartItem
-	if err := config.DB.First(&cartItem, cartItemID).Error; err != nil {
+	if err := cc.DB.First(&cartItem, cartItemID).Error; err != nil {
 		utils.Error(c, http.StatusNotFound, "购物项不存在")
 		return
 	}
@@ -98,7 +107,7 @@ func DeleteCartItem(c *gin.Context) {
 		return
 	}
 
-	if err := config.DB.Delete(&cartItem).Error; err != nil {
+	if err := cc.DB.Delete(&cartItem).Error; err != nil {
 		utils.Error(c, http.StatusInternalServerError, "删除购物车中选中物品失败")
 		return
 	}
@@ -112,18 +121,22 @@ type UpdateCartItemInput struct {
 
 // 修改数量
 // PATCH /cart/:id
-func UpdateCartItem(c *gin.Context) {
+func (cc *CartController) UpdateCartItem(c *gin.Context) {
 	userID := c.GetUint("user_id")
 	cartItemID := c.Param("id")
 
 	var input UpdateCartItemInput
-	if err := c.ShouldBindJSON(&input); err != nil || input.Quantity == 0 {
+	if err := c.ShouldBindJSON(&input); err != nil {
 		utils.Error(c, http.StatusBadRequest, "参数错误")
+		return
+	}
+	if input.Quantity == 0 {
+		utils.Error(c, http.StatusBadRequest, "数量必须大于 0")
 		return
 	}
 
 	var cartItem models.CartItem
-	if err := config.DB.First(&cartItem, cartItemID).Error; err != nil {
+	if err := cc.DB.First(&cartItem, cartItemID).Error; err != nil {
 		utils.Error(c, http.StatusNotFound, "购物项不存在")
 		return
 	}
@@ -134,7 +147,7 @@ func UpdateCartItem(c *gin.Context) {
 	}
 
 	cartItem.Quantity = input.Quantity
-	if err := config.DB.Save(&cartItem).Error; err != nil {
+	if err := cc.DB.Save(&cartItem).Error; err != nil {
 		utils.Error(c, http.StatusInternalServerError, "更新购物车内选中商品数量失败")
 		return
 	}

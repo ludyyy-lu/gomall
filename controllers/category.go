@@ -1,14 +1,23 @@
 package controllers
 
 import (
-	"gomall/config"
 	"gomall/models"
 	"gomall/utils"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
+
+type CategoryController struct {
+	DB *gorm.DB
+	// RDB *redis.Client
+}
+
+func NewCategoryController(db *gorm.DB) *CategoryController {
+	return &CategoryController{DB: db}
+}
 
 // 创建分类接口
 type CategoryInput struct {
@@ -16,7 +25,7 @@ type CategoryInput struct {
 	Description string `json:"description"`
 }
 
-func CreateCategory(c *gin.Context) {
+func (cc *CategoryController) CreateCategory(c *gin.Context) {
 	var input CategoryInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		utils.Error(c, http.StatusBadRequest, "参数错误")
@@ -28,7 +37,7 @@ func CreateCategory(c *gin.Context) {
 		Description: input.Description,
 	}
 
-	if err := config.DB.Create(&category).Error; err != nil {
+	if err := cc.DB.Create(&category).Error; err != nil {
 		utils.Error(c, http.StatusInternalServerError, "创建失败")
 		return
 	}
@@ -37,9 +46,9 @@ func CreateCategory(c *gin.Context) {
 }
 
 // 获取分类列表接口
-func GetCategories(c *gin.Context) {
+func (cc *CategoryController) GetCategories(c *gin.Context) {
 	var categories []models.Category
-	if err := config.DB.Find(&categories).Error; err != nil {
+	if err := cc.DB.Find(&categories).Error; err != nil {
 		utils.Error(c, http.StatusInternalServerError, "查询失败")
 		return
 	}
@@ -47,7 +56,7 @@ func GetCategories(c *gin.Context) {
 }
 
 // 查询分类下的商品
-func GetProductsByCategory(c *gin.Context) {
+func (cc *CategoryController) GetProductsByCategory(c *gin.Context) {
 	categoryID := c.Param("id")
 	pageStr := c.DefaultQuery("page", "1")
 	sizeStr := c.DefaultQuery("size", "10")
@@ -63,13 +72,13 @@ func GetProductsByCategory(c *gin.Context) {
 	offset := (page - 1) * size
 
 	var category models.Category
-	if err := config.DB.First(&category, categoryID).Error; err != nil {
+	if err := cc.DB.First(&category, categoryID).Error; err != nil {
 		utils.Error(c, http.StatusNotFound, "分类不存在")
 		return
 	}
 
 	var products []models.Product
-	if err := config.DB.Model(&category).
+	if err := cc.DB.Model(&category).
 		Offset(offset).
 		Limit(size).
 		Association("Products").

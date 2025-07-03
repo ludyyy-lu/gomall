@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"context"
-	"gomall/config"
 	"gomall/models"
 	"gomall/utils"
 	"log"
@@ -15,13 +14,22 @@ import (
 	"gorm.io/gorm"
 )
 
+type OrderController struct {
+	DB  *gorm.DB
+	RDB *redis.Client
+}
+
+func NewOrderController(db *gorm.DB, rdb *redis.Client) *OrderController {
+	return &OrderController{DB: db, RDB: rdb}
+}
+
 // 创建订单
-func CreateOrder(c *gin.Context) {
+func (oc *OrderController) CreateOrder(c *gin.Context) {
 	userID := c.GetUint("user_id")
 
 	var cartItems []models.CartItem
 	// 查询用户购物车中所有项（你也可以只下单选中的）
-	if err := config.DB.Where("user_id = ?", userID).Preload("Product").Find(&cartItems).Error; err != nil {
+	if err := oc.DB.Where("user_id = ?", userID).Preload("Product").Find(&cartItems).Error; err != nil {
 		utils.Error(c, http.StatusInternalServerError, "获取购物车失败")
 		return
 	}
@@ -35,7 +43,7 @@ func CreateOrder(c *gin.Context) {
 	var totalPrice float64
 
 	// 开启事务
-	tx := config.DB.Begin()
+	tx := oc.DB.Begin()
 
 	// 遍历购物车项，构造订单项
 	for _, item := range cartItems {
@@ -100,7 +108,7 @@ func CreateOrder(c *gin.Context) {
 	expireAt := time.Now().Add(1 * time.Minute).Unix()
 	redisKey := "order:timeout"
 
-	if err := config.RDB.ZAdd(context.Background(), redisKey, redis.Z{
+	if err := oc.RDB.ZAdd(context.Background(), redisKey, redis.Z{
 		Score:  float64(expireAt),
 		Member: order.ID,
 	}).Err(); err != nil {
@@ -115,7 +123,7 @@ func CreateOrder(c *gin.Context) {
 }
 
 // 查询订单列表
-func GetOrders(c *gin.Context) {
+func (oc *OrderController) GetOrders(c *gin.Context) {
 	userID := c.GetUint("user_id")
 
 	// 分页参数
@@ -133,7 +141,7 @@ func GetOrders(c *gin.Context) {
 
 	var orders []models.Order
 	// ！！！
-	if err := config.DB.
+	if err := oc.DB.
 		Where("user_id = ?", userID).
 		Preload("OrderItems.Product").
 		Order("created_at DESC").
@@ -145,7 +153,7 @@ func GetOrders(c *gin.Context) {
 	}
 
 	var total int64
-	config.DB.Model(&models.Order{}).Where("user_id = ?", userID).Count(&total)
+	oc.DB.Model(&models.Order{}).Where("user_id = ?", userID).Count(&total)
 
 	utils.Success(c, gin.H{
 		"page":  page,
@@ -156,12 +164,12 @@ func GetOrders(c *gin.Context) {
 }
 
 // 获取订单详情
-func GetOrderDetail(c *gin.Context) {
+func (oc *OrderController) GetOrderDetail(c *gin.Context) {
 	orderID := c.Param("id")
 	userID := c.GetUint("user_id")
 
 	var order models.Order
-	if err := config.DB.
+	if err := oc.DB.
 		Where("id = ? AND user_id = ?", orderID, userID).
 		Preload("OrderItems.Product").
 		First(&order).Error; err != nil {
@@ -173,12 +181,12 @@ func GetOrderDetail(c *gin.Context) {
 }
 
 // 模拟支付
-func PayOrder(c *gin.Context) {
+func (oc *OrderController) PayOrder(c *gin.Context) {
 	orderID := c.Param("id")
 	userID := c.GetUint("user_id")
 
 	var order models.Order
-	if err := config.DB.
+	if err := oc.DB.
 		Preload("OrderItems.Product").
 		Where("id = ? AND user_id = ?", orderID, userID).
 		First(&order).Error; err != nil {
@@ -193,7 +201,7 @@ func PayOrder(c *gin.Context) {
 
 	// 开启事务
 	// ！！！
-	tx := config.DB.Begin()
+	tx := oc.DB.Begin()
 
 	for _, item := range order.OrderItems {
 		if item.Product.Stock < item.Quantity {
@@ -227,7 +235,7 @@ func PayOrder(c *gin.Context) {
 
 // 订单状态管理
 // GetOrderStats 获取订单状态统计
-func GetOrderStats(c *gin.Context) {
+func (oc *OrderController) GetOrderStats(c *gin.Context) {
 	userID := c.GetUint("user_id")
 
 	var total, pending, paid, cancelled, today int64
@@ -238,22 +246,22 @@ func GetOrderStats(c *gin.Context) {
 	// 今日创建的订单数量
 
 	// 总订单数
-	config.DB.Model(&models.Order{}).
+	oc.DB.Model(&models.Order{}).
 		Where("user_id = ?", userID).
 		Count(&total)
 
 	// 待支付
-	config.DB.Model(&models.Order{}).
+	oc.DB.Model(&models.Order{}).
 		Where("user_id = ? AND status = ?", userID, "pending").
 		Count(&pending)
 
 	// 已支付
-	config.DB.Model(&models.Order{}).
+	oc.DB.Model(&models.Order{}).
 		Where("user_id = ? AND status = ?", userID, "paid").
 		Count(&paid)
 
 	// 已取消
-	config.DB.Model(&models.Order{}).
+	oc.DB.Model(&models.Order{}).
 		Where("user_id = ? AND status = ?", userID, "cancelled").
 		Count(&cancelled)
 
@@ -261,7 +269,7 @@ func GetOrderStats(c *gin.Context) {
 	todayStart := time.Now().Truncate(24 * time.Hour)
 	// time.Now()是获取当前时间 比如现在2025-07-02 15:23:45
 	// time.Now().Truncate(24 * time.Hour)是获取今天的开始时间，即2025-07-02 00:00:00
-	config.DB.Model(&models.Order{}).
+	oc.DB.Model(&models.Order{}).
 		Where("user_id = ? AND created_at >= ?", userID, todayStart).
 		Count(&today)
 	// 获取今天创建的订单
@@ -280,12 +288,12 @@ func GetOrderStats(c *gin.Context) {
 // 取消后订单状态更新为 canceled
 // 恢复对应商品的库存（注意并发问题，后面可以用事务）
 // 返回取消成功或失败信息
-func CancelOrder(c *gin.Context) {
+func (oc *OrderController) CancelOrder(c *gin.Context) {
 	userID := c.GetUint("user_id")
 	orderID := c.Param("id")
 
 	var order models.Order
-	if err := config.DB.Where("id = ? AND user_id = ?", orderID, userID).First(&order).Error; err != nil {
+	if err := oc.DB.Where("id = ? AND user_id = ?", orderID, userID).First(&order).Error; err != nil {
 		utils.Error(c, http.StatusNotFound, "订单不存在")
 		return
 	}
@@ -296,7 +304,7 @@ func CancelOrder(c *gin.Context) {
 	}
 
 	// 启动事务
-	err := config.DB.Transaction(func(tx *gorm.DB) error {
+	err := oc.DB.Transaction(func(tx *gorm.DB) error {
 		// 更新订单状态为取消
 		if err := tx.Model(&order).Update("status", "canceled").Error; err != nil {
 			return err
@@ -328,12 +336,12 @@ func CancelOrder(c *gin.Context) {
 // 订单状态流转
 // 商家发货
 // 发货：POST /orders/:id/ship
-func ShipOrder(c *gin.Context) {
+func (oc *OrderController) ShipOrder(c *gin.Context) {
 	orderID := c.Param("id")
 	userID := c.GetUint("user_id")
 
 	var order models.Order
-	if err := config.DB.Where("id = ? AND user_id = ?", orderID, userID).First(&order).Error; err != nil {
+	if err := oc.DB.Where("id = ? AND user_id = ?", orderID, userID).First(&order).Error; err != nil {
 		utils.Error(c, http.StatusNotFound, "订单不存在")
 		return
 	}
@@ -344,7 +352,7 @@ func ShipOrder(c *gin.Context) {
 	}
 
 	order.Status = "shipped"
-	if err := config.DB.Save(&order).Error; err != nil {
+	if err := oc.DB.Save(&order).Error; err != nil {
 		utils.Error(c, http.StatusInternalServerError, "发货失败")
 		return
 	}
@@ -354,12 +362,12 @@ func ShipOrder(c *gin.Context) {
 
 // 确认收货
 // 确认收货：POST /orders/:id/confirm
-func ConfirmOrder(c *gin.Context) {
+func (oc *OrderController) ConfirmOrder(c *gin.Context) {
 	orderID := c.Param("id")
 	userID := c.GetUint("user_id")
 
 	var order models.Order
-	if err := config.DB.Where("id = ? AND user_id = ?", orderID, userID).First(&order).Error; err != nil {
+	if err := oc.DB.Where("id = ? AND user_id = ?", orderID, userID).First(&order).Error; err != nil {
 		utils.Error(c, http.StatusNotFound, "订单不存在")
 		return
 	}
@@ -370,7 +378,7 @@ func ConfirmOrder(c *gin.Context) {
 	}
 
 	order.Status = "delivered"
-	if err := config.DB.Save(&order).Error; err != nil {
+	if err := oc.DB.Save(&order).Error; err != nil {
 		utils.Error(c, http.StatusInternalServerError, "确认收货失败")
 		return
 	}
@@ -380,12 +388,12 @@ func ConfirmOrder(c *gin.Context) {
 
 // 超时自动取消
 // 超时关闭未支付订单：GET /orders/auto-cancel
-func AutoCancelOrders(c *gin.Context) {
+func (oc *OrderController) AutoCancelOrders(c *gin.Context) {
 	now := time.Now()
 	tenMinutesAgo := now.Add(-10 * time.Minute)
 
 	var orders []models.Order
-	err := config.DB.
+	err := oc.DB.
 		Where("status = ? AND created_at <= ?", "pending", tenMinutesAgo).
 		Find(&orders).Error
 
@@ -397,7 +405,7 @@ func AutoCancelOrders(c *gin.Context) {
 	// 取消这些订单
 	for _, order := range orders {
 		order.Status = "timeout"
-		config.DB.Save(&order)
+		oc.DB.Save(&order)
 	}
 
 	utils.Success(c, gin.H{

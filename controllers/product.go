@@ -1,17 +1,25 @@
 package controllers
 
 import (
-	"gomall/config"
 	"gomall/models"
 	"gomall/utils"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
+type ProductController struct {
+	DB *gorm.DB
+}
+
+func NewProductController(db *gorm.DB) *ProductController {
+	return &ProductController{DB: db}
+}
+
 // 创建商品
-func CreateProduct(c *gin.Context) {
+func (pc ProductController) CreateProduct(c *gin.Context) {
 	var input struct {
 		Name        string  `json:"name" binding:"required"`
 		Description string  `json:"description"`
@@ -36,7 +44,7 @@ func CreateProduct(c *gin.Context) {
 		UserID:      userID,
 	}
 
-	if err := config.DB.Create(&product).Error; err != nil {
+	if err := pc.DB.Create(&product).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建失败"})
 		return
 	}
@@ -45,7 +53,7 @@ func CreateProduct(c *gin.Context) {
 }
 
 // 商品列表
-func GetProducts(c *gin.Context) {
+func (pc ProductController) GetProducts(c *gin.Context) {
 	// 分页参数
 	pageStr := c.DefaultQuery("page", "1")
 	sizeStr := c.DefaultQuery("size", "10")
@@ -76,7 +84,7 @@ func GetProducts(c *gin.Context) {
 	}
 
 	var products []models.Product
-	query := config.DB.Model(&models.Product{}).Where("on_sale = ?", true)
+	query := pc.DB.Model(&models.Product{}).Where("on_sale = ?", true)
 	if keyword != "" {
 		query = query.Where("name LIKE ? OR description LIKE ?", "%"+keyword+"%", "%"+keyword+"%")
 	}
@@ -98,11 +106,11 @@ func GetProducts(c *gin.Context) {
 }
 
 // 商品详情
-func GetProductDetail(c *gin.Context) {
+func (pc ProductController) GetProductDetail(c *gin.Context) {
 	id := c.Param("id")
 
 	var product models.Product
-	if err := config.DB.First(&product, id).Error; err != nil {
+	if err := pc.DB.First(&product, id).Error; err != nil {
 		utils.Error(c, http.StatusNotFound, "商品不存在")
 		return
 	}
@@ -113,11 +121,11 @@ func GetProductDetail(c *gin.Context) {
 }
 
 // 商品更新
-func UpdateProduct(c *gin.Context) {
+func (pc ProductController) UpdateProduct(c *gin.Context) {
 	id := c.Param("id")
 
 	var product models.Product
-	if err := config.DB.First(&product, id).Error; err != nil {
+	if err := pc.DB.First(&product, id).Error; err != nil {
 		utils.Error(c, http.StatusNotFound, "商品不存在")
 		return
 	}
@@ -146,7 +154,7 @@ func UpdateProduct(c *gin.Context) {
 		product.Stock = *input.Stock
 	}
 
-	if err := config.DB.Save(&product).Error; err != nil {
+	if err := pc.DB.Save(&product).Error; err != nil {
 		utils.Error(c, http.StatusInternalServerError, "更新失败")
 		return
 	}
@@ -155,19 +163,19 @@ func UpdateProduct(c *gin.Context) {
 }
 
 // 软删除商品
-func DeleteProduct(c *gin.Context) {
+func (pc ProductController) DeleteProduct(c *gin.Context) {
 	id := c.Param("id")
 
 	var product models.Product
-	if err := config.DB.First(&product, id).Error; err != nil {
+	if err := pc.DB.First(&product, id).Error; err != nil {
 		utils.Error(c, http.StatusNotFound, "商品不存在")
 		return
 	}
 
 	// 删除前解除关联
-	config.DB.Model(&product).Association("Categories").Clear()
+	pc.DB.Model(&product).Association("Categories").Clear()
 
-	if err := config.DB.Delete(&product).Error; err != nil {
+	if err := pc.DB.Delete(&product).Error; err != nil {
 		utils.Error(c, http.StatusInternalServerError, "删除失败")
 		return
 	}
@@ -181,7 +189,7 @@ type ProductCategoryInput struct {
 }
 
 // POST /products/:id/categories
-func SetProductCategories(c *gin.Context) {
+func (pc ProductController) SetProductCategories(c *gin.Context) {
 	var input ProductCategoryInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		utils.Error(c, http.StatusBadRequest, "参数错误")
@@ -191,18 +199,18 @@ func SetProductCategories(c *gin.Context) {
 	productID := c.Param("id")
 
 	var product models.Product
-	if err := config.DB.Preload("Categories").First(&product, productID).Error; err != nil {
+	if err := pc.DB.Preload("Categories").First(&product, productID).Error; err != nil {
 		utils.Error(c, http.StatusNotFound, "商品不存在")
 		return
 	}
 
 	var categories []models.Category
-	if err := config.DB.Where("id IN ?", input.CategoryIDs).Find(&categories).Error; err != nil {
+	if err := pc.DB.Where("id IN ?", input.CategoryIDs).Find(&categories).Error; err != nil {
 		utils.Error(c, http.StatusInternalServerError, "查询分类失败")
 		return
 	}
 
-	if err := config.DB.Model(&product).Association("Categories").Replace(&categories); err != nil {
+	if err := pc.DB.Model(&product).Association("Categories").Replace(&categories); err != nil {
 		utils.Error(c, http.StatusInternalServerError, "关联分类失败")
 		return
 	}
@@ -212,11 +220,11 @@ func SetProductCategories(c *gin.Context) {
 
 // 查询商品分类接口
 // GET /products/:id/categories
-func GetProductCategories(c *gin.Context) {
+func (pc ProductController) GetProductCategories(c *gin.Context) {
 	productID := c.Param("id")
 
 	var product models.Product
-	if err := config.DB.Preload("Categories").First(&product, productID).Error; err != nil {
+	if err := pc.DB.Preload("Categories").First(&product, productID).Error; err != nil {
 		utils.Error(c, http.StatusNotFound, "商品不存在")
 		return
 	}
@@ -225,23 +233,23 @@ func GetProductCategories(c *gin.Context) {
 }
 
 // 删除商品和某个分类的关联接口
-func RemoveProductCategory(c *gin.Context) {
+func (pc ProductController) RemoveProductCategory(c *gin.Context) {
 	productID := c.Param("product_id")
 	categoryID := c.Param("category_id")
 
 	var product models.Product
-	if err := config.DB.Preload("Categories").First(&product, productID).Error; err != nil {
+	if err := pc.DB.Preload("Categories").First(&product, productID).Error; err != nil {
 		utils.Error(c, http.StatusNotFound, "商品不存在")
 		return
 	}
 
 	var category models.Category
-	if err := config.DB.First(&category, categoryID).Error; err != nil {
+	if err := pc.DB.First(&category, categoryID).Error; err != nil {
 		utils.Error(c, http.StatusNotFound, "分类不存在")
 		return
 	}
 
-	if err := config.DB.Model(&product).Association("Categories").Delete(&category); err != nil {
+	if err := pc.DB.Model(&product).Association("Categories").Delete(&category); err != nil {
 		utils.Error(c, http.StatusInternalServerError, "解绑失败")
 		return
 	}
@@ -250,7 +258,7 @@ func RemoveProductCategory(c *gin.Context) {
 }
 
 // PATCH /products/:id/status
-func UpdateProductStatus(c *gin.Context) {
+func (pc ProductController) UpdateProductStatus(c *gin.Context) {
 	productID := c.Param("id")
 	var input struct {
 		OnSale bool `json:"on_sale"` // 是否上架
@@ -262,13 +270,13 @@ func UpdateProductStatus(c *gin.Context) {
 	}
 
 	var product models.Product
-	if err := config.DB.First(&product, productID).Error; err != nil {
+	if err := pc.DB.First(&product, productID).Error; err != nil {
 		utils.Error(c, http.StatusNotFound, "商品不存在")
 		return
 	}
 
 	product.OnSale = input.OnSale
-	if err := config.DB.Save(&product).Error; err != nil {
+	if err := pc.DB.Save(&product).Error; err != nil {
 		utils.Error(c, http.StatusInternalServerError, "更新失败")
 		return
 	}

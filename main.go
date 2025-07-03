@@ -15,11 +15,12 @@ func main() {
 	if err != nil {
 		log.Println("警告：未能从 .env 文件加载环境变量")
 	}
-	config.InitDB()
-	config.InitRedis()
-	utils.StartOrderTimeoutWatcher()
+	db, _ := config.InitDB()
+	rdb := config.InitRedis()
+	utils.SetupRedis(rdb)
+	utils.StartOrderTimeoutWatcher(rdb, db)
 	r := gin.Default()
-	routers.RegisterRoutes(r)
+	routers.RegisterRoutes(r, db, rdb)
 
 	r.Run(":8080") // 监听端口
 }

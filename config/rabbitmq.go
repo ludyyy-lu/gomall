@@ -1,22 +1,20 @@
 package config
 
 import (
+	"fmt"
 	"log"
 	"os"
 
-	"github.com/joho/godotenv"
 	"github.com/rabbitmq/amqp091-go"
 )
 
-var MQConn *amqp091.Connection
-
-func InitRabbitMQ() {
-	_ = godotenv.Load()
+func InitRabbitMQ() *amqp091.Connection {
 	url := os.Getenv("RABBITMQ_URL")
-
 	conn, err := amqp091.Dial(url)
 	if err != nil {
 		log.Fatalf("连接 RabbitMQ 失败：%v", err)
+		return nil
 	}
-	MQConn = conn
+	fmt.Println("✅ RabbitMQ 连接成功")
+	return conn
 }

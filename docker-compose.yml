@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: gomall-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASS} # root用户的密码
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}  # 新建一个普通用户
+      MYSQL_PASSWORD: ${DB_PASS} # 普通用户的密码
+    ports:
+      - "${DB_PORT}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    restart: always  # 自动重启
+
+  redis:
+    image: redis:7
+    container_name: gomall-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: always
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: gomall-rabbitmq
+    ports:
+      - "5672:5672"     # 应用连接端口
+      - "15672:15672"   # 管理界面 http://localhost:15672
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+    restart: always
+
+volumes:
+  mysql_data:
+  redis_data:

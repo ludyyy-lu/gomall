@@ -5,6 +5,7 @@ import (
 	"gomall/config"
 	"gomall/models"
 	"gomall/utils"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -33,6 +34,9 @@ func CreateOrder(c *gin.Context) {
 	var orderItems []models.OrderItem
 	var totalPrice float64
 
+	// 开启事务
+	tx := config.DB.Begin()
+
 	// 遍历购物车项，构造订单项
 	for _, item := range cartItems {
 		product := item.Product
@@ -42,10 +46,17 @@ func CreateOrder(c *gin.Context) {
 			return
 		}
 
-		// 更新库存
-		product.Stock -= item.Quantity
-		if err := config.DB.Save(&product).Error; err != nil {
-			utils.Error(c, http.StatusInternalServerError, "更新库存失败")
+		// 乐观锁方式更新库存
+		result := tx.Model(&models.Product{}).
+			Where("id = ? AND version = ? AND stock >= ?", product.ID, product.Version, item.Quantity).
+			Updates(map[string]interface{}{
+				"stock":   gorm.Expr("stock - ?", item.Quantity),
+				"version": gorm.Expr("version + 1"),
+			})
+
+		if result.RowsAffected == 0 {
+			tx.Rollback()
+			utils.Error(c, http.StatusConflict, "库存不足，或发生并发冲突："+product.Name)
 			return
 		}
 
@@ -67,22 +78,36 @@ func CreateOrder(c *gin.Context) {
 		OrderItems: orderItems,
 	}
 
-	if err := config.DB.Create(&order).Error; err != nil {
+	if err := tx.Create(&order).Error; err != nil {
+		tx.Rollback()
 		utils.Error(c, http.StatusInternalServerError, "创建订单失败")
 		return
 	}
+	//清空购物车项失败回滚
+	if err := tx.Where("user_id = ?", userID).Delete(&models.CartItem{}).Error; err != nil {
+		tx.Rollback()
+		utils.Error(c, http.StatusInternalServerError, "清空购物车失败")
+		return
+	}
 
-	// 清空购物车
-	config.DB.Where("user_id = ?", userID).Delete(&models.CartItem{})
+	// 提交事务
+	tx.Commit()
+
+	// 事务提交之后才设置超时
+	// 这是为了保证「只有数据库里真实存在的订单」才会进入 Redis 延迟队列
 
 	// 设置订单超时
 	expireAt := time.Now().Add(1 * time.Minute).Unix()
 	redisKey := "order:timeout"
 
-	config.RDB.ZAdd(context.Background(), redisKey, redis.Z{
+	if err := config.RDB.ZAdd(context.Background(), redisKey, redis.Z{
 		Score:  float64(expireAt),
 		Member: order.ID,
-	}).Err()
+	}).Err(); err != nil {
+		log.Printf("设置订单超时失败：%v", err)
+		// 不中断整个流程，但是要记录下错误
+	}
+
 	utils.Success(c, gin.H{
 		"order": order,
 	}, "订单创建成功")

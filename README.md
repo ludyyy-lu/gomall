@@ -251,6 +251,23 @@ GET /orders/:id
 | 任意        | 用户取消订单 | `cancelled` |
 | 任意        | 系统超时关闭 | `timeout`   |
 
+**订单超时取消**
+设计思路（Redis 延迟队列）
+👇 创建订单时：
+将订单信息放进一个 Redis zset（有序集合），score 是 “过期时间戳”（现在+10分钟）
+后台起一个 goroutine 定时（比如每 1 分钟）轮询 Redis，取出超时未支付的订单，然后取消掉
+```
+expireAt := time.Now().Add(10 * time.Minute).Unix()
+config.RDB.ZAdd(ctx, "order:timeout", redis.Z{
+	Score:  float64(expireAt),
+	Member: order.ID,
+})
+```
+ZAdd 把 order.ID 插入到一个名为 order:timeout 的 Redis 有序集合中。
+使用 expireAt 时间作为 Score，未来你可以用 ZRangeByScore 查出过期订单。
+用在订单自动取消功能中（定时任务扫描 Redis）。
+
+
 * 还可以扩展的内容
 * 支持部分商品下单
 * 支持事务控制（失败就回滚库存）

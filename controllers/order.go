@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"context"
 	"gomall/config"
 	"gomall/models"
 	"gomall/utils"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 )
 
@@ -73,9 +75,18 @@ func CreateOrder(c *gin.Context) {
 	// 清空购物车
 	config.DB.Where("user_id = ?", userID).Delete(&models.CartItem{})
 
+	// 设置订单超时
+	expireAt := time.Now().Add(1 * time.Minute).Unix()
+	redisKey := "order:timeout"
+
+	config.RDB.ZAdd(context.Background(), redisKey, redis.Z{
+		Score:  float64(expireAt),
+		Member: order.ID,
+	}).Err()
 	utils.Success(c, gin.H{
 		"order": order,
 	}, "订单创建成功")
+
 }
 
 // 查询订单列表
@@ -151,7 +162,7 @@ func PayOrder(c *gin.Context) {
 	}
 
 	if order.Status != "pending" {
-		utils.Error(c, http.StatusBadRequest, "订单无法支付")
+		utils.Error(c, http.StatusBadRequest, "订单已失效，无法支付")
 		return
 	}
 

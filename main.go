@@ -3,6 +3,7 @@ package main
 import (
 	"gomall/config"
 	"gomall/routers"
+	"gomall/utils"
 	"log"
 
 	"github.com/gin-gonic/gin"
@@ -15,7 +16,8 @@ func main() {
 		log.Println("警告：未能从 .env 文件加载环境变量")
 	}
 	config.InitDB()
-
+	config.InitRedis()
+	utils.StartOrderTimeoutWatcher()
 	r := gin.Default()
 	routers.RegisterRoutes(r)
 

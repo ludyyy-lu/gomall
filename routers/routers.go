@@ -5,11 +5,12 @@ import (
 	"gomall/middlewares"
 
 	"github.com/gin-gonic/gin"
+	"github.com/rabbitmq/amqp091-go"
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 )
 
-func RegisterRoutes(r *gin.Engine, db *gorm.DB, rdb *redis.Client) {
+func RegisterRoutes(r *gin.Engine, db *gorm.DB, rdb *redis.Client,mq *amqp091.Connection) {
 	// 用户认证
 	userController := controllers.NewUserController(db)
 	r.POST("/register", userController.Register)
@@ -56,7 +57,7 @@ func RegisterRoutes(r *gin.Engine, db *gorm.DB, rdb *redis.Client) {
 		cart.PATCH("/:id", cartController.UpdateCartItem)
 
 	}
-	orderController := controllers.NewOrderController(db, rdb)
+	orderController := controllers.NewOrderController(db, rdb,mq)
 	order := auth.Group("/orders")
 	{
 		order.POST("", orderController.CreateOrder)

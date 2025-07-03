@@ -17,10 +17,11 @@ func main() {
 	}
 	db, _ := config.InitDB()
 	rdb := config.InitRedis()
+	mq := config.InitRabbitMQ()
 	utils.SetupRedis(rdb)
 	utils.StartOrderTimeoutWatcher(rdb, db)
 	r := gin.Default()
-	routers.RegisterRoutes(r, db, rdb)
+	routers.RegisterRoutes(r, db, rdb, mq)
 
 	r.Run(":8080") // 监听端口
 }

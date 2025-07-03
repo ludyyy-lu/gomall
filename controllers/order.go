@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/rabbitmq/amqp091-go"
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 )
@@ -17,10 +18,11 @@ import (
 type OrderController struct {
 	DB  *gorm.DB
 	RDB *redis.Client
+	MQConn *amqp091.Connection
 }
 
-func NewOrderController(db *gorm.DB, rdb *redis.Client) *OrderController {
-	return &OrderController{DB: db, RDB: rdb}
+func NewOrderController(db *gorm.DB, rdb *redis.Client,mq *amqp091.Connection) *OrderController {
+	return &OrderController{DB: db, RDB: rdb,MQConn: mq}
 }
 
 // 创建订单
@@ -114,6 +116,15 @@ func (oc *OrderController) CreateOrder(c *gin.Context) {
 	}).Err(); err != nil {
 		log.Printf("设置订单超时失败：%v", err)
 		// 不中断整个流程，但是要记录下错误
+	}
+
+	// 消息队列
+	ch, err := oc.MQConn.Channel()
+	if err != nil {
+		log.Printf("⚠️ 无法创建 RabbitMQ channel: %v", err)
+	} else {
+		defer ch.Close()
+		_ = utils.PublishOrderCreated(ch, order)
 	}
 
 	utils.Success(c, gin.H{

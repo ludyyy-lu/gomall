@@ -16,13 +16,13 @@ import (
 )
 
 type OrderController struct {
-	DB  *gorm.DB
-	RDB *redis.Client
+	DB     *gorm.DB
+	RDB    *redis.Client
 	MQConn *amqp091.Connection
 }
 
-func NewOrderController(db *gorm.DB, rdb *redis.Client,mq *amqp091.Connection) *OrderController {
-	return &OrderController{DB: db, RDB: rdb,MQConn: mq}
+func NewOrderController(db *gorm.DB, rdb *redis.Client, mq *amqp091.Connection) *OrderController {
+	return &OrderController{DB: db, RDB: rdb, MQConn: mq}
 }
 
 // 创建订单
@@ -56,18 +56,33 @@ func (oc *OrderController) CreateOrder(c *gin.Context) {
 			return
 		}
 
-		// 乐观锁方式更新库存
-		result := tx.Model(&models.Product{}).
-			Where("id = ? AND version = ? AND stock >= ?", product.ID, product.Version, item.Quantity).
-			Updates(map[string]interface{}{
-				"stock":   gorm.Expr("stock - ?", item.Quantity),
-				"version": gorm.Expr("version + 1"),
-			})
+		// 如果是秒杀商品，则用 Redis + Lua 扣库存
+		if product.IsSeckill {
+			success, err := utils.SeckillDecrStock(oc.RDB, product.ID, item.Quantity)
+			if err != nil || success == -1 {
+				tx.Rollback()
+				utils.Error(c, http.StatusInternalServerError, "Redis 扣库存失败："+err.Error())
+				return
+			}
+			if success == 0 {
+				tx.Rollback()
+				utils.Error(c, http.StatusConflict, "秒杀商品库存不足："+product.Name)
+				return
+			}
+		} else {
+			// 非秒杀商品仍然走数据库乐观锁
+			result := tx.Model(&models.Product{}).
+				Where("id = ? AND version = ? AND stock >= ?", product.ID, product.Version, item.Quantity).
+				Updates(map[string]interface{}{
+					"stock":   gorm.Expr("stock - ?", item.Quantity),
+					"version": gorm.Expr("version + 1"),
+				})
 
-		if result.RowsAffected == 0 {
-			tx.Rollback()
-			utils.Error(c, http.StatusConflict, "库存不足，或发生并发冲突："+product.Name)
-			return
+			if result.RowsAffected == 0 {
+				tx.Rollback()
+				utils.Error(c, http.StatusConflict, "库存不足，或发生并发冲突："+product.Name)
+				return
+			}
 		}
 
 		subTotal := float64(item.Quantity) * product.Price

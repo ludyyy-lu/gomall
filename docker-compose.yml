@@ -1,6 +1,31 @@
 version: '3.8'
 
 services:
+  gomall:
+    build: .
+    container_name: gomall-app
+    depends_on:
+      - mysql
+      - redis
+      - rabbitmq
+    ports:
+      - "8080:8080"
+    volumes:
+      - .:/app
+    working_dir: /app
+    command: go run main.go  # 主服务入口
+
+  consumer:
+    build: .
+    container_name: gomall-consumer
+    depends_on:
+      - rabbitmq
+    volumes:
+      - .:/app
+    working_dir: /app
+    command: go run main/consumer.go  # 消费者入口
+
+
   mysql:
     image: mysql:8.0
     container_name: gomall-mysql

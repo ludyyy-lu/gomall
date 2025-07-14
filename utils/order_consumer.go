@@ -54,6 +54,5 @@ func StartOrderConsumer(conn *amqp.Connection) {
 		log.Printf("📥 收到新订单：ID=%d, 用户ID=%d, 总价=%.2f", order.ID, order.UserID, order.TotalPrice)
 	
 		// TODO: 可以添加更多处理逻辑，比如写库、发邮件、推送通知等
-
 	}
 }

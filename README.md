@@ -313,6 +313,134 @@ ZAdd 把 order.ID 插入到一个名为 order:timeout 的 Redis 有序集合中�
 * 支持事务控制（失败就回滚库存）
 * 支持并发下单控制库存（防止超卖）
 
+#### 一些docker配置的注意事项
+.env文件
+```
+# mysql
+DB_USER=gomalluser
+DB_PASS=gomallpass
+# 用于宿主机访问
+DB_HOST_EXTERNAL=localhost
+# 用于容器内部通信
+DB_HOST=mysql
+DB_PORT=3307
+DB_NAME=gomall
+```
+docker-compose.yml文件
+```
+  mysql:
+    image: mysql:8.0
+    container_name: gomall-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASS} # root用户的密码
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}  # 新建一个普通用户
+      MYSQL_PASSWORD: ${DB_PASS} # 普通用户的密码
+    ports:
+      - "${DB_PORT}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    restart: always  # 自动重启
+```
+ports:
+     - "${DB_PORT}:3306"
+类似于这种部分，是3307映射到3306，其中3307是宿主机端口号，而3306是docker内部的端口号。
+
+#### 外部访问 Docker 容器中的服务时，为什么用 localhost 而不是容器内的配置
+这个问题源于
+```
+如何验证代码运行正常？
+✅ 验证主服务 gomall-app
+访问 http://localhost:8080：
+查看商品接口是否能访问。
+注册登录是否成功。
+下单是否能收到响应。
+```
+为什么是localhost而不是我们docker里面设置的其他的host？
+
+gpt回答：
+为什么你访问的是 http://localhost:8080/orders
+因为你用的是 Postman 或浏览器在 主机（Windows）上访问接口，而你的商城后端（Gin服务）绑定在：
+```
+r.Run(":8080")
+```
+这表示它监听的是容器的 8080 端口，并通过 Docker 映射到了你本地的 localhost:8080。
+
+那 RabbitMQ 怎么是用 rabbitmq:5672 呢？
+这是因为你的 consumer.go 是运行在 Docker 容器内部的，在 Docker Compose 的同一个网络中：
+容器之间可以通过服务名互相通信。
+你的 RabbitMQ 服务的名称是 rabbitmq（看 docker-compose.yml 中的 key）。
+所以 consumer.go 中连接 RabbitMQ 要用：
+```
+RABBITMQ_URL=amqp://gomall:gomall123@rabbitmq:5672/
+```
+而不是 localhost:5672，因为 **localhost 代表的是容器自己**，而不是宿主机。
+
+| 场景                   | 正确地址                                     | 错误写法                       |
+| -------------------- | ---------------------------------------- | -------------------------- |
+| 浏览器访问商城接口            | `http://localhost:8080`                  | `http://rabbitmq:8080` ❌   |
+| consumer 访问 RabbitMQ | `amqp://gomall:gomall123@rabbitmq:5672/` | `amqp://localhost:5672/` ❌ |
+
+豆包回答：
+这里的核心问题是 “外部访问 Docker 容器中的服务时，为什么用 localhost 而不是容器内的配置”，这涉及到 Docker 的网络映射机制，我们一步步拆解：
+**一、先明确几个关键概念**
+宿主机（Host）：你正在使用的电脑（比如你的 Windows 或 Mac），是 Docker 容器的 “宿主”。
+Docker 容器（Container）：一个独立的 “小虚拟环境”，里面运行着你的应用（比如这里的 gomall-consumer、RabbitMQ 等）。
+端口映射（Port Mapping）：Docker 允许将容器内的端口 “暴露” 给宿主机，这样宿主机或外部设备才能访问容器内的服务。
+**二、为什么用 localhost:8080 访问？**
+假设你的 订单服务（处理 /orders 请求的服务） 是运行在 Docker 容器中的，且启动时配置了端口映射，比如：
+```
+# docker-compose.yml 中的订单服务配置
+order-service:
+  image: your-order-image
+  ports:
+    - "8080:8080"  # 关键：将容器内的 8080 端口映射到宿主机的 8080 端口
+```
+这时：
+容器内部的服务监听的是容器自己的 8080 端口（容器内的网络是独立的，和宿主机不直接互通）。
+但通过 ports: "8080:8080" 配置，Docker 会在宿主机上 “开放” 8080 端口，并将所有发送到宿主机 8080 端口的请求转发到容器内的 8080 端口。
+因此，当你在宿主机上用工具（如 Postman）发送请求时：
+你实际操作的是宿主机的网络，所以必须用宿主机的地址（localhost 或宿主机的 IP，比如 192.168.1.100）。
+端口用宿主机上映射的端口（这里是 8080），而不是容器内的端口（虽然这里两者相同，但逻辑上必须用宿主机的端口）。
+**三、为什么不用 Docker 内部的配置（比如容器名）？**
+Docker 容器之间可以通过 容器名 或 服务名 互相访问（比如你的 gomall-consumer 连接 RabbitMQ 时用 rabbitmq 作为地址），但这仅限于 容器之间的内部通信。
+例如：
+你的 gomall-consumer 在容器内连接 RabbitMQ 时，用的是 rabbitmq:5672（rabbitmq 是容器名，容器内部可以直接通过这个名字找到对应的容器）。
+但如果你在 宿主机 上（比如用 Postman 或浏览器）访问，宿主机不认识 rabbitmq 这个名字（这是 Docker 内部的 “别名”），必须用宿主机的地址（localhost）+ 映射的端口。
+**四、总结：localhost vs 容器名的区别**
+|场景	| 访问方式	| 原因 |
+| -------------------- | ---------------------------------------- | -------------------------- |
+|宿主机访问容器内服务 |	http://localhost:映射的端口	| 宿主机只能通过自己的地址 + 映射的端口访问容器 |
+|容器内访问其他容器服务	| http://容器名:容器内端口	|Docker 内部有 “DNS 解析”，能通过容器名找到对应容器 |
+|容器内访问宿主机服务	| http://host.docker.internal:端口	| 这是 Docker 提供的特殊地址，用于容器访问宿主机 |
+#### RabbitMQ 功能测试
+启动 RabbitMQ 容器（gomall-rabbitmq）。
+启动消费者容器（gomall-consumer）。
+```
+docker-compose up --build consumer
+```
+启动成功之后，
+登录 RabbitMQ 管理界面（默认 http://localhost:15672，账号密码 从.env中得到），找到 order.created 队列，手动发送一条 JSON 格式的测试消息。
+在 RabbitMQ 管理界面中，向order.created队列手动发送 JSON 格式测试消息，可按以下步骤操作：
+登录 RabbitMQ 管理界面后，在左侧菜单中点击 “Queues”，找到 “order.created” 队列并点击进入该队列的详情页面。
+在队列详情页面，向下滚动页面，找到 “Publish message” 部分。
+在 “Headers” 区域，添加一个键值对，键为 “contentType”，值为 “application/json”，以此指定消息内容为 JSON 格式。
+在 “Payload” 输入框中，填写你要发送的 JSON 格式消息内容。注意键值需要和建表时表示一致。例如：
+```
+{
+  "id": 1001,
+  "user_id": 123,
+  "total_price": 99.99
+}
+```
+确认填写无误后，点击 “Publish message” 按钮，即可将 JSON 格式的测试消息发送到order.created队列中。
+
+发送成功之后，终端显示如下：
+```
+gomall-consumer  | 2025/07/14 06:12:57 📥 收到新订单：ID=1001, 用户ID=123, 总价=99.99
+```
+说明消息队列功能正常。
+
 ### 疑问
 #### 自动迁移的一些注意事项
 | 注意事项                     | 说明                                                |

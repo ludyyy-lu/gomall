@@ -15,4 +15,5 @@ type Product struct {
 	Categories  []Category `gorm:"many2many:product_categories"` // 多对多
 	OnSale      bool       `gorm:"default:true" json:"on_sale"`
 	Version     int        `gorm:"default:1" json:"version"` // 乐观锁版本号
+	IsSeckill   bool       `gorm:"default:false" json:"is_seckill"` // 是否秒杀商品
 }

@@ -783,6 +783,15 @@ result := tx.Model(&models.Product{}).
 
 ✅ 秒杀版本应该如何改？
 1️⃣ 预加载库存到 Redis（初始化的时候做一次）
+
+    目的
+    在系统启动或秒杀开始前，把商品库存预先加载进 Redis，后续所有库存判断、扣减都只走 Redis，避开慢吞吞的数据库。
+    我们设计一个 Redis key 规则：seckill:stock:<product_id>
+    比如商品 ID 是 101，那 Redis 里就存：seckill:stock:101 = 100
+
+    数据准备（假设）
+    你数据库里 products 表中，有一部分商品字段可以标记为 is_seckill = true，表示这是秒杀商品。
+    
 2️⃣ 使用 Lua 脚本实现原子扣减逻辑
 
 ### 一些疑问 或者 补充问题

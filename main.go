@@ -18,9 +18,12 @@ func main() {
 	db, _ := config.InitDB()
 	rdb := config.InitRedis()
 	mq := config.InitRabbitMQ()
+	utils.PreloadSeckillStock(db, rdb)
+
 	// utils.SetupRedis(rdb)
 	utils.StartOrderConsumer(mq)
 	utils.StartOrderTimeoutWatcher(rdb, db)
+	
 	r := gin.Default()
 	routers.RegisterRoutes(r, db, rdb, mq)
 

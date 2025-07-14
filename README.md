@@ -759,3 +759,37 @@ RabbitMQ 中的消息都 先送到交换机。
 ✅ 程序结构更清晰，main 不会被卡住
 ⚠️ 注意：
 你要保证 main 不会马上退出，否则 goroutine 没机会执行（这就是为啥你在 main 里面要留住程序运行，比如用 gin.Run()）
+
+## Redis库存+秒杀限购（用 Lua 脚本 原子操作）
+我们已经完成的部分
+| 功能项             | 状态 | 说明                            |
+| --------------- | -- | ----------------------------- |
+| Redis 已接入       | ✅  | 已经封装成 `InitRedis()` 并注入控制器    |
+| RabbitMQ 异步消息队列 | ✅  | 在订单创建时发送消息，在消费者中异步处理          |
+| Redis 超时订单处理    | ✅  | 使用 `ZSet + 轮询 goroutine` 定期处理 |
+
+我们需要在哪部分引入 Redis+Lua 秒杀控制？
+你目前的订单创建逻辑里是在这里做库存检查和扣减的：
+```
+// controller/order.go 的 CreateOrder 方法中
+result := tx.Model(&models.Product{}).
+	Where("id = ? AND version = ? AND stock >= ?", product.ID, product.Version, item.Quantity).
+	Updates(map[string]interface{}{
+		"stock":   gorm.Expr("stock - ?", item.Quantity),
+		"version": gorm.Expr("version + 1"),
+	})
+```
+这里用的是 ✅ 乐观锁 —— 适合普通购物流程，但不适合秒杀。
+
+✅ 秒杀版本应该如何改？
+1️⃣ 预加载库存到 Redis（初始化的时候做一次）
+2️⃣ 使用 Lua 脚本实现原子扣减逻辑
+
+### 一些疑问 或者 补充问题
+为什么需要 Redis + Lua 做秒杀库存控制？
+1. 高并发场景下，MySQL 性能瓶颈明显：
+* 秒杀时千万用户并发下单，频繁操作 MySQL 的 stock-- 会导致锁争用、写入瓶颈。
+2. Redis 是单线程 + 内存级别操作，非常快：
+* 用 Redis 来“挡住”第一波请求，能大幅减轻数据库压力。
+3. Lua 脚本可以在 Redis 中一次性执行多个命令，保证原子性：
+* Redis 本身不支持事务回滚，而 Lua 脚本是官方推荐的原子操作方式。

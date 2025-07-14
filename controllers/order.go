@@ -124,6 +124,7 @@ func (oc *OrderController) CreateOrder(c *gin.Context) {
 		log.Printf("⚠️ 无法创建 RabbitMQ channel: %v", err)
 	} else {
 		defer ch.Close()
+		log.Println("📤 正在发送订单创建消息...")
 		_ = utils.PublishOrderCreated(ch, order)
 	}
 

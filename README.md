@@ -791,8 +791,17 @@ result := tx.Model(&models.Product{}).
 
     数据准备（假设）
     你数据库里 products 表中，有一部分商品字段可以标记为 is_seckill = true，表示这是秒杀商品。
-    
+
 2️⃣ 使用 Lua 脚本实现原子扣减逻辑
+    
+    为什么用 Lua？
+    我们不能直接用普通 Redis 操作：
+    stock, _ := rdb.Get(ctx, key).Int()
+    if stock > 0 {
+        rdb.Decr(ctx, key)
+    }
+    因为这是两个 Redis 命令，非原子操作，高并发下还是会出现库存变成负数。
+    所以：我们必须把库存判断 + 扣减，封装在一段 Lua 脚本里执行，Redis 会保证整个 Lua 脚本原子执行 ✅
 
 ### 一些疑问 或者 补充问题
 为什么需要 Redis + Lua 做秒杀库存控制？
